@@ -1,0 +1,32 @@
+# Core dependencies
+torch>=2.0.0
+transformers>=4.35.0
+datasets>=2.14.0
+tokenizers>=0.14.0
+
+# Configuration
+pyyaml>=6.0
+omegaconf>=2.3.0
+
+# Logging and monitoring
+wandb>=0.15.0
+tqdm>=4.65.0
+
+# Numerical computing
+numpy>=1.24.0
+
+# Benchmarking (lm-evaluation-harness)
+lm-eval>=0.4.0
+
+# Optional: Flash Attention (requires CUDA)
+# flash-attn>=2.3.0
+
+# Optional: Accelerate for multi-GPU training
+# accelerate>=0.24.0
+
+# Optional: TPU support (PyTorch XLA)
+# Install from: https://github.com/pytorch/xla
+# For Google Cloud TPU:
+#   pip install torch-xla[tpu] -f https://storage.googleapis.com/libtpu-releases/index.html
+# For Colab TPU:
+#   pip install torch-xla

@@ -1,0 +1,101 @@
+# Surrogate-Assisted Language Model Training Configuration (FIXED)
+# =========================================================
+# This configuration file demonstrates how to set up training
+# with a surrogate model providing guidance signals.
+#
+# KEY CHANGES FROM ORIGINAL:
+# 1. Changed model dtype from float16 to float32 (prevents NaN on MPS)
+# 2. Changed surrogate dtype from float16 to float32
+# 3. Added comments explaining the numerical stability requirements
+
+# Base model configuration
+model:
+  name_or_path: "gpt2"  # HuggingFace model name or local path
+  # CRITICAL: Use float32 on MPS to avoid NaN issues
+  # float16 causes underflow in softmax → reciprocal → inf → NaN
+  dtype: "float32"      # Changed from float16
+  use_flash_attention: false
+  gradient_checkpointing: false
+  trust_remote_code: false
+  init_from_scratch: true
+
+# Surrogate model configuration
+surrogate:
+  name_or_path: "Qwen/Qwen3-0.6B"
+  # CRITICAL: Surrogate must also use float32 for stable perplexity computation
+  dtype: "float32"      # Changed from float16
+  k: 30
+  probability_threshold: 0.02
+  enabled: true
+  trust_remote_code: true
+  loss_weight_initial: 1.0
+  loss_weight_final: 0.0
+  # Weighting mode for auxiliary tokens:
+  # - true: weight by softmax(-perplexity) (lower perplexity = higher weight)
+  # - false: uniform weights of 1 for all valid tokens (indicator function)
+  use_perplexity_weighting: false
+
+# Data configuration
+data:
+  dataset_name: "wikitext"
+  dataset_config: "wikitext-2-raw-v1"
+  dataset_split: "train"
+  eval_split: "validation"
+  text_column: "text"
+  max_seq_length: 1024
+  preprocessing_num_workers: 4
+  eval_split_ratio: 0.05
+  eval_split_seed: 42
+
+# Training configuration
+training:
+  output_dir: "./outputs"
+  num_epochs: 3
+  per_device_train_batch_size: 4
+  per_device_eval_batch_size: 8
+  gradient_accumulation_steps: 4
+  learning_rate: 1.0e-4
+  weight_decay: 0.01
+  warmup_ratio: 0.1
+  max_grad_norm: 1.0
+  lr_scheduler_type: "cosine"
+  
+  loss_type: "surrogate"
+  device: "mps"
+  
+  # TPU-specific options (not used for MPS)
+  tpu_cores: 8
+  tpu_num_hosts: 4
+  tpu_metrics_debug: false
+  tpu_use_pjrt: true
+  
+  # Keep mixed precision off - we're using float32 model weights
+  mixed_precision: "no"
+  
+  logging_steps: 10
+  eval_steps: 500
+  save_steps: 1000
+  save_total_limit: 3
+  
+  use_z_loss: false
+  z_loss_multiplier: 1.0e-4
+  
+  seed: 67
+  
+  wandb_project: "SDCE"
+  wandb_run_name: "gpt2-with-qwen-surrogate-fixed"
+  wandb_entity: "nathanngtruong-university-of-california-berkeley"
+
+# Benchmark evaluation configuration
+evaluation:
+  enabled: true
+  eval_interval: 1000
+  tasks:
+    - "hellaswag"
+    - "arc_easy"
+    - "piqa"
+  num_fewshot: 0
+  batch_size: 8
+  limit: null
+  log_individual_tasks: true
+  log_aggregate_score: true

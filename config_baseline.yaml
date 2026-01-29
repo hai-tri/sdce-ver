@@ -1,0 +1,121 @@
+# Surrogate-Assisted Language Model Training Configuration
+# =========================================================
+# This configuration file demonstrates how to set up training
+# with a surrogate model providing guidance signals.
+
+# Base model configuration
+model:
+  name_or_path: "gpt2"  # HuggingFace model name or local path
+  dtype: "float32"      # Use float32 for numerical stability
+  use_flash_attention: false
+  gradient_checkpointing: false
+  trust_remote_code: false
+  init_from_scratch: false  # If true, initialize model with random weights (no pretrained)
+
+# Surrogate model configuration
+# NOTE: surrogate.enabled is automatically set based on training.loss_type
+# For loss_type="standard", surrogate is disabled regardless of this setting
+surrogate:
+  name_or_path: "Qwen/Qwen3-0.6B"  # Surrogate model for guidance
+  dtype: "float32"
+  k: 30                       # Number of top-k tokens to select by probability
+  probability_threshold: 0.02 # Min probability to include token (tokens below are masked out)
+  enabled: true               # Auto-overridden based on loss_type
+  trust_remote_code: true
+  loss_weight_initial: 1.0  # Starting weight for surrogate loss
+  loss_weight_final: 0.0    # Final weight (decays to this via cosine schedule)
+  # Weighting mode for auxiliary tokens:
+  # - true: weight by softmax(-perplexity) (lower perplexity = higher weight)
+  # - false: uniform weights of 1 for all valid tokens (indicator function)
+  use_perplexity_weighting: true
+
+# Data configuration
+data:
+  dataset_name: "wikitext"          # HuggingFace dataset name
+  dataset_config: "wikitext-2-raw-v1"  # Dataset configuration/subset
+  dataset_split: "train"
+  eval_split: "validation"
+  text_column: "text"               # Column containing text data
+  max_seq_length: 1024
+  preprocessing_num_workers: 4
+  # Auto-create eval split if none exists in the dataset
+  eval_split_ratio: 0.05            # Ratio of train data to use for eval
+  eval_split_seed: 42               # Seed for reproducible eval split
+  # For custom datasets, use these instead:
+  # train_file: "/path/to/train.json"
+  # eval_file: "/path/to/eval.json"
+
+# Training configuration
+training:
+  output_dir: "./outputs"
+  num_epochs: 3
+  per_device_train_batch_size: 4
+  per_device_eval_batch_size: 8
+  gradient_accumulation_steps: 4
+  learning_rate: 1.0e-4
+  weight_decay: 0.01
+  warmup_ratio: 0.1
+  # warmup_steps: 100  # Use this instead of warmup_ratio if preferred
+  max_grad_norm: 1.0
+  lr_scheduler_type: "cosine"  # cosine, linear, constant, etc.
+  
+  # Loss type selection:
+  # - "standard": Cross-entropy only (typical LM training, no surrogate)
+  # - "surrogate": CE + surrogate-guided loss with top-k perplexity weighting (default)
+  # - "kl": CE + KL divergence from surrogate distribution
+  loss_type: "standard"
+  
+  # Device selection: "auto", "cuda", "mps", "tpu", "cpu"
+  device: "auto"
+  
+  # TPU-specific options (TPU v4-32: 4 hosts × 8 cores = 32 total cores)
+  tpu_cores: 8             # Cores per host: 8 for TPU v4
+  tpu_num_hosts: 4         # Number of hosts: 4 for v4-32
+  tpu_metrics_debug: false # Print TPU metrics for debugging
+  tpu_use_pjrt: true       # Use PJRT runtime (required for TPU v4 pods)
+  
+  # Mixed precision training
+  # Disabled for numerical stability with standard CE loss
+  mixed_precision: "no"
+  
+  # Logging and checkpointing
+  logging_steps: 10
+  eval_steps: 500
+  save_steps: 1000
+  save_total_limit: 3
+  
+  # Auxiliary loss (from PaLM)
+  use_z_loss: false
+  z_loss_multiplier: 1.0e-4
+  
+  # Random seed
+  seed: 67
+  
+  # Resume training
+  # resume_from_checkpoint: "./outputs/checkpoint-1000"
+  
+  # Weights & Biases logging
+  wandb_project: "SDCE"
+  wandb_run_name: "gpt2-with-qwen-surrogate"
+  wandb_entity: "nathanngtruong-university-of-california-berkeley"
+
+# Benchmark evaluation configuration (lm-evaluation-harness)
+evaluation:
+  enabled: true                    # Enable/disable benchmark evaluation
+  eval_interval: 1000              # Run benchmarks every N steps
+  
+  # Benchmark tasks to run
+  # Common options: "hellaswag", "arc_easy", "arc_challenge", "winogrande", 
+  # "piqa", "boolq", "lambada_openai", "mmlu", "truthfulqa_mc", "gsm8k"
+  tasks:
+    - "hellaswag"
+    - "arc_easy"
+    - "piqa"
+  
+  num_fewshot: 0                   # Number of few-shot examples (0 for zero-shot)
+  batch_size: 8                    # Batch size for evaluation
+  limit: null                      # Limit examples per task (null for all)
+  
+  # Logging options
+  log_individual_tasks: true       # Log score for each task separately
+  log_aggregate_score: true        # Log mean score across all tasks
