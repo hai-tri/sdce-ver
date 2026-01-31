@@ -1,0 +1,83 @@
+# TinyLlama 1.1B on SlimPajama - TPU v4-32 Configuration
+# ========================================================
+
+model:
+  name_or_path: "TinyLlama/TinyLlama-1.1B-intermediate-step-1431k-3T"
+  dtype: "bfloat16"
+  use_flash_attention: true          # CHANGED: A100 optimization (was false)
+  gradient_checkpointing: true
+  trust_remote_code: false
+  init_from_scratch: true            # CHANGED: init weights from scratch (was false)
+
+surrogate:
+  name_or_path: "Qwen/Qwen3-0.6B"    # CHANGED: surrogate model (was Qwen2.5-1.5B)
+  dtype: "bfloat16"
+  k: 10
+  probability_threshold: 0.01
+  enabled: true
+  trust_remote_code: true
+  loss_weight_initial: 1.0
+  loss_weight_final: 0.0
+  use_perplexity_weighting: false    # CHANGED: indicator / uniform weights (was true)
+
+data:
+  dataset_name: "cerebras/SlimPajama-627B"
+  dataset_config: null
+  dataset_split: "train"
+  eval_split: "validation"
+  text_column: "text"
+  max_seq_length: 2048
+  preprocessing_num_workers: 8       # CHANGED: TPU had 2; GPU can use more (was 2)
+  eval_split_ratio: 0.001
+  eval_split_seed: 42
+
+training:
+  output_dir: "gs://sdce-tinyllama-checkpoints/tinyllama-slimpajama"
+  num_epochs: 1
+
+  # CHANGED: A100-80GB can handle larger microbatch than TPU-per-core=4.
+  # If you want to keep the same *effective* batch as TPU v4-32, do that by scaling GPUs instead.
+  per_device_train_batch_size: 16
+  per_device_eval_batch_size: 8      # UNCHANGED (same evals)
+  gradient_accumulation_steps: 8     # UNCHANGED
+
+  learning_rate: 3.0e-4
+  weight_decay: 0.1
+  warmup_ratio: 0.01
+  max_grad_norm: 1.0
+  lr_scheduler_type: "cosine"
+  loss_type: "surrogate"
+
+  device: "cuda"                     # CHANGED: was "tpu"
+  tpu_cores: 8                        # left as-is; ignored on cuda
+  tpu_num_hosts: 4                    # left as-is; ignored on cuda
+  tpu_metrics_debug: false
+  tpu_use_pjrt: true
+  mixed_precision: "bf16"
+
+  logging_steps: 100
+  eval_steps: 5000
+  save_steps: 5000
+  save_total_limit: 5
+  use_z_loss: true
+  z_loss_multiplier: 1.0e-4
+  seed: 42
+
+  wandb_project: "SDCE-TinyLlama"     # UNCHANGED
+  wandb_run_name: "tinyllama-1.1b-slimpajama-a100"  # UNCHANGED
+  wandb_entity: "nathanngtruong-university-of-california-berkeley"  # UNCHANGED
+
+evaluation:                            # UNCHANGED (same evals)
+  enabled: true
+  eval_interval: 5000
+  tasks:
+    - "hellaswag"
+    - "arc_easy"
+    - "arc_challenge"
+    - "piqa"
+    - "winogrande"
+  num_fewshot: 0
+  batch_size: 16
+  limit: 1000
+  log_individual_tasks: true
+  log_aggregate_score: true
